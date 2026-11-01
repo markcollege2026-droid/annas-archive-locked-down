@@ -12,8 +12,8 @@ android/keystore.properties
 android/*.keystore
 android/*.jks
 
-# Build outputs downloaded from CI
-apk/
+# APK build outputs (CI commits apk/*.apk back to the branch on purpose)
+apk/*.apk.tmp
 
 # Editors / OS
 .DS_Store

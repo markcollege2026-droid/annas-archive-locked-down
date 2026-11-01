@@ -210,8 +210,21 @@ passwords. Without that file the release APK builds but is unsigned.
    `apksigner`, uploads them as workflow artifacts, and publishes them to the
    **`apk-latest`** GitHub release.
 
-Download them either from the workflow run's *Artifacts* section or from
-*Releases → AA Gateway APKs*.
+Download them from any of these places:
+
+* `apk/aa-gateway-debug.apk` and `apk/aa-gateway-release.apk` in this branch — the
+  workflow commits each build back to the branch, so a plain `git pull` is enough;
+* the workflow run's *Artifacts* section;
+* *Releases → AA Gateway APKs* (tag `apk-latest`).
+
+```bash
+adb install -r apk/aa-gateway-release.apk     # release build
+adb install -r apk/aa-gateway-debug.apk       # debug build (package suffix .debug)
+```
+
+Both are signed with APK Signature Scheme v2 and install on Android 7.0 (API 24)
+and newer. On first launch the app asks for your gateway URL and access
+sequence; after that it opens straight to the gateway.
 
 > The CI signing key is generated per run (unless you set the
 > `ANDROID_KEYSTORE_PASSWORD` secret plus commit your own keystore). Because the
