@@ -1,0 +1,21 @@
+# Node
+node_modules/
+npm-debug.log*
+.env
+
+# Android / Gradle
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/keystore.properties
+android/*.keystore
+android/*.jks
+
+# Build outputs downloaded from CI
+apk/
+
+# Editors / OS
+.DS_Store
+.idea/
+*.iml

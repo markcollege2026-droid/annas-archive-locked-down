@@ -1,0 +1,89 @@
+plugins {
+    id 'com.android.application'
+}
+
+// ---------------------------------------------------------------------------
+// Client defaults. Override at build time with:
+//   ./gradlew assembleRelease -PgatewayUrl=https://my-gateway.example.com/ \
+//                             -PaccessSequence=annas-arichive
+// or by editing the fallbacks below.
+// ---------------------------------------------------------------------------
+def gatewayUrl = (project.findProperty('gatewayUrl') ?: 'https://gateway.example.com/').toString()
+def accessSequence = (project.findProperty('accessSequence') ?: 'annas-arichive').toString()
+def accessParam = (project.findProperty('accessParam') ?: 'gateway').toString()
+
+// Optional release signing: copy keystore.properties.example to
+// keystore.properties and fill it in (CI generates one automatically).
+def keystorePropertiesFile = rootProject.file('keystore.properties')
+def keystoreProperties = new Properties()
+def hasReleaseKeystore = keystorePropertiesFile.exists()
+if (hasReleaseKeystore) {
+    keystorePropertiesFile.withInputStream { stream -> keystoreProperties.load(stream) }
+}
+
+android {
+    namespace 'io.aagateway.app'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'io.aagateway.app'
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName '1.0.0'
+
+        buildConfigField 'String', 'DEFAULT_GATEWAY_URL', "\"${gatewayUrl}\""
+        buildConfigField 'String', 'ACCESS_SEQUENCE', "\"${accessSequence}\""
+        buildConfigField 'String', 'ACCESS_PARAM', "\"${accessParam}\""
+        buildConfigField 'int', 'MAX_SEQUENCE_SPAN', '17'
+        buildConfigField 'boolean', 'CASE_SENSITIVE', 'true'
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    signingConfigs {
+        if (hasReleaseKeystore) {
+            release {
+                storeFile rootProject.file(keystoreProperties.getProperty('storeFile', 'release.keystore'))
+                storePassword keystoreProperties.getProperty('storePassword', '')
+                keyAlias keystoreProperties.getProperty('keyAlias', 'gateway')
+                keyPassword keystoreProperties.getProperty('keyPassword', '')
+            }
+        }
+    }
+
+    buildTypes {
+        debug {
+            applicationIdSuffix '.debug'
+            versionNameSuffix '-debug'
+            buildConfigField 'boolean', 'DEBUG_BUILD', 'true'
+        }
+        release {
+            minifyEnabled false
+            shrinkResources false
+            buildConfigField 'boolean', 'DEBUG_BUILD', 'false'
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            if (hasReleaseKeystore) {
+                signingConfig signingConfigs.release
+            }
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    lint {
+        abortOnError false
+        checkReleaseBuilds false
+    }
+
+    packaging {
+        resources {
+            excludes += ['META-INF/*']
+        }
+    }
+}
