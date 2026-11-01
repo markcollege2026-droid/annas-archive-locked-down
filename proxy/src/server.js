@@ -81,11 +81,29 @@ function stripTokenQuery(rawUrl, cfg) {
   return kept ? `${path}?${kept}` : path;
 }
 
-/** Build the upstream URL for a request, stripped of the wrapper's own token. */
+/**
+ * Build the upstream URL for a request, stripped of the wrapper's own token.
+ *
+ * The scheme and host always come from configuration, never from the request.
+ * Without this an absolute-form request target ("GET http://elsewhere/x"), a
+ * protocol-relative target ("//elsewhere/x") or a backslash-prefixed target
+ * could make the wrapper fetch a different host.
+ */
 export function upstreamUrlFor(rawUrl, cfg) {
   const forwarded = cfg.STRIP_TOKEN_BEFORE_FORWARDING ? stripTokenQuery(rawUrl, cfg) : rawUrl;
-  const safePath = forwarded.startsWith('/') ? forwarded : `/${forwarded}`;
-  return new URL(safePath, `${cfg.TARGET_ORIGIN}/`);
+  const base = `${cfg.TARGET_ORIGIN}/`;
+
+  let pathname = '/';
+  let search = '';
+  try {
+    const parsed = new URL(forwarded, base);
+    pathname = parsed.pathname || '/';
+    search = parsed.search;
+  } catch {
+    pathname = '/';
+  }
+
+  return new URL(`${pathname}${search}`, base);
 }
 
 /**
@@ -264,11 +282,19 @@ async function proxyRequest(req, res, cfg, fingerprint) {
     cfg,
   );
 
+  // Never rewrite a body we cannot read as text: if upstream ignored our
+  // identity Accept-Encoding, pass the compressed bytes straight through.
+  const encoding = String(upstream.headers['content-encoding'] || 'identity').trim().toLowerCase();
+  const isPlainText = encoding === '' || encoding === 'identity';
+
   const canRewrite =
-    cfg.REWRITE_LINKS && HTML_CONTENT_TYPE_RE.test(contentType) && req.method !== 'HEAD';
+    cfg.REWRITE_LINKS &&
+    isPlainText &&
+    HTML_CONTENT_TYPE_RE.test(contentType) &&
+    req.method !== 'HEAD';
 
   if (!canRewrite) {
-    delete responseHeaders['content-length'];
+    // Body is byte-identical, so the upstream Content-Length stays valid.
     res.writeHead(status, responseHeaders);
     if (req.method === 'HEAD' || !upstream.body) {
       res.end();

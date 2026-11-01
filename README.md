@@ -102,7 +102,7 @@ MAX_SEQUENCE_SPAN=20 npm start
 CASE_SENSITIVE=false npm start
 ```
 
-Tests (the gateway is covered by 46 unit + integration tests against a fake
+Tests (the gateway is covered by 48 unit + integration tests against a fake
 origin):
 
 ```bash
@@ -133,6 +133,9 @@ on the wrapper.
 
 ## 4. How it behaves
 
+* **The upstream origin is always taken from configuration**, never from the
+  request, so absolute-form targets (`GET http://elsewhere/x`), protocol-relative
+  targets and backslash tricks cannot turn the gateway into an open proxy.
 * **Validation is 100 % server-side.** Client JavaScript is never consulted, and
   disabling JavaScript, using `curl`, or hitting the port with a bot changes
   nothing.

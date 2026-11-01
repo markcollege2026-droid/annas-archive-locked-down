@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
+import zlib from 'node:zlib';
 
 import { createApp } from '../src/server.js';
 import { CONFIG } from '../src/config.js';
@@ -61,6 +62,16 @@ async function startOrigin() {
           <form action="/search" method="get"><input name="q"></form>
           <p>Visible text stays identical.</p>
         </body></html>`);
+        return;
+      }
+      if (req.url.startsWith('/compressed')) {
+        const gzipped = zlib.gzipSync('<a href="/book/abc">x</a>');
+        res.writeHead(200, {
+          'Content-Type': 'text/html; charset=utf-8',
+          'Content-Encoding': 'gzip',
+          'Content-Length': String(gzipped.length),
+        });
+        res.end(gzipped);
         return;
       }
       if (req.url.startsWith('/big')) {
@@ -188,6 +199,32 @@ test('uncompressed HTML is requested upstream when rewriting is enabled', async 
   }
 });
 
+test('compressed HTML is passed through instead of being rewritten', async () => {
+  const gw = await startGateway();
+  try {
+    const { status, headers, body } = await new Promise((resolve, reject) => {
+      const request = http.get(`${gw.base}/compressed?${TOKEN}`, (response) => {
+        const chunks = [];
+        response.on('data', (chunk) => chunks.push(chunk));
+        response.on('end', () =>
+          resolve({
+            status: response.statusCode,
+            headers: response.headers,
+            body: Buffer.concat(chunks),
+          }),
+        );
+      });
+      request.on('error', reject);
+    });
+
+    assert.equal(status, 200);
+    assert.equal(headers['content-encoding'], 'gzip');
+    assert.match(zlib.gunzipSync(body).toString(), /href="\/book\/abc"/);
+  } finally {
+    await gw.close();
+  }
+});
+
 test('non-HTML bodies pass through untouched', async () => {
   const gw = await startGateway();
   try {
@@ -245,6 +282,36 @@ test('request bodies and methods are forwarded', async () => {
     assert.equal(res.status, 200);
     assert.equal(gw.seen[0].method, 'POST');
     assert.equal(gw.seen[0].body, 'q=dune');
+  } finally {
+    await gw.close();
+  }
+});
+
+test('absolute-form request targets cannot redirect the proxy elsewhere', async () => {
+  const gw = await startGateway();
+  try {
+    // A raw HTTP client can send "GET http://evil.test/x HTTP/1.1".
+    const status = await new Promise((resolve, reject) => {
+      const request = http.request(
+        {
+          host: '127.0.0.1',
+          port: new URL(gw.base).port,
+          method: 'GET',
+          path: `http://evil.test/steal?${TOKEN}`,
+        },
+        (response) => {
+          response.resume();
+          response.on('end', () => resolve(response.statusCode));
+        },
+      );
+      request.on('error', reject);
+      request.end();
+    });
+
+    assert.equal(status, 200);
+    assert.equal(gw.seen.length, 1);
+    assert.equal(gw.seen[0].url, '/steal');
+    assert.equal(gw.seen[0].headers.host, new URL(gw.cfg.TARGET_ORIGIN).host);
   } finally {
     await gw.close();
   }
