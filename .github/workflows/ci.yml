@@ -14,6 +14,11 @@ on:
 permissions:
   contents: write
 
+# Stop the APK-commit push from re-running the pipeline.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   # ---------------------------------------------------------------------------
   # Server-side gateway: install, run the unit/integration tests
@@ -113,6 +118,23 @@ jobs:
           name: aa-gateway-release-apk
           path: apk/aa-gateway-release.apk
           if-no-files-found: error
+
+      # The APKs are also committed back to the branch, so they can be fetched
+      # with a plain `git pull` (no artifact/log-in round trip needed).
+      # "[skip ci]" stops this commit from re-triggering the workflow.
+      - name: Commit APKs to the branch
+        if: github.event_name == 'push'
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f apk/aa-gateway-debug.apk apk/aa-gateway-release.apk
+          if git diff --cached --quiet; then
+            echo 'APK outputs unchanged since last build.'
+            exit 0
+          fi
+          git commit -m "ci: update APK artifacts (run ${{ github.run_number }}) [skip ci]"
+          git push origin "HEAD:${{ github.ref_name }}"
 
       - name: Publish APKs to a GitHub release
         if: github.event_name != 'pull_request'
