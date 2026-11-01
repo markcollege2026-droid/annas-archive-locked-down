@@ -10,6 +10,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
 import android.text.InputType;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.ViewGroup;
@@ -36,6 +37,7 @@ import java.util.Locale;
  */
 public class MainActivity extends Activity {
 
+    private static final String TAG = "AAGateway";
     private static final String PREFS = "gateway_prefs";
     private static final String PREF_GATEWAY_URL = "gateway_url";
     private static final String PREF_ACCESS_SEQUENCE = "access_sequence";
@@ -54,8 +56,18 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
 
         prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
-        gatewayUrl = prefs.getString(PREF_GATEWAY_URL, BuildConfig.DEFAULT_GATEWAY_URL);
+
+        // The gateway is locked at build time (see GatewayPolicy). While editing
+        // is disabled the stored value is deliberately ignored and the URL
+        // compiled into the APK is always used.
+        String storedGateway = prefs.getString(PREF_GATEWAY_URL, null);
+        gatewayUrl = GatewayPolicy.resolveGatewayUrl(storedGateway);
         accessSequence = prefs.getString(PREF_ACCESS_SEQUENCE, BuildConfig.ACCESS_SEQUENCE);
+
+        if (storedGateway != null && !storedGateway.equals(gatewayUrl)) {
+            Log.i(TAG, "Ignoring stored gateway URL: the gateway is locked in this build.");
+            prefs.edit().remove(PREF_GATEWAY_URL).apply();
+        }
 
         webView = new WebView(this);
         webView.setLayoutParams(new ViewGroup.LayoutParams(
@@ -65,15 +77,12 @@ public class MainActivity extends Activity {
 
         if (savedInstanceState != null) {
             webView.restoreState(savedInstanceState);
-        } else if (isPlaceholderGateway()) {
+        } else if (GatewayPolicy.isEditingAllowed() && storedGateway == null) {
+            // Only reachable in a build where editing has been unlocked again.
             showSettingsDialog(true);
         } else {
             loadHome();
         }
-    }
-
-    private boolean isPlaceholderGateway() {
-        return gatewayUrl == null || gatewayUrl.isEmpty() || gatewayUrl.contains("example.com");
     }
 
     private void configureWebView(WebView view) {
@@ -224,11 +233,25 @@ public class MainActivity extends Activity {
     }
 
     private void loadHome() {
-        if (isPlaceholderGateway()) {
-            showSettingsDialog(true);
-            return;
+        if (!GatewayPolicy.isAllowed(gatewayUrl)) {
+            // Cannot happen with the shipped build (the policy falls back to the
+            // canonical site), but never load a non-Anna's Archive host.
+            gatewayUrl = GatewayPolicy.resolveGatewayUrl(null);
         }
         webView.loadUrl(withAccessSequence(gatewayUrl));
+    }
+
+    /** Shown by the (compiled-out) settings entry while the lock is in place. */
+    private void showLockedDialog() {
+        new AlertDialog.Builder(this)
+                .setTitle("Gateway settings are locked")
+                .setMessage("This build is pinned to " + gatewayUrl + "\n\n"
+                        + "The gateway editor is still in the source code, but it is disabled "
+                        + "at build time. To use it you must set "
+                        + "ALLOW_IN_APP_GATEWAY_EDITING = true in GatewayPolicy.java and "
+                        + "rebuild the APK. There is no in-app way to unlock it.")
+                .setPositiveButton("OK", (dialog, which) -> dialog.dismiss())
+                .show();
     }
 
     @Override
@@ -249,7 +272,11 @@ public class MainActivity extends Activity {
                 loadHome();
                 return true;
             case MENU_SETTINGS:
-                showSettingsDialog(false);
+                if (GatewayPolicy.isEditingAllowed()) {
+                    showSettingsDialog(false);
+                } else {
+                    showLockedDialog();
+                }
                 return true;
             default:
                 return super.onOptionsItemSelected(item);
@@ -279,10 +306,14 @@ public class MainActivity extends Activity {
                 .setView(layout)
                 .setCancelable(!firstRun)
                 .setPositiveButton("Save and load", (dialog, which) -> {
-                    String url = urlField.getText().toString().trim();
+                    String url = GatewayPolicy.normalize(urlField.getText().toString());
                     String sequence = sequenceField.getText().toString().trim();
-                    if (url.isEmpty()) {
+                    if (url == null || url.isEmpty()) {
                         toast("Gateway URL is required");
+                        return;
+                    }
+                    if (!GatewayPolicy.isAllowed(url)) {
+                        toast(GatewayPolicy.rejectionReason(url));
                         return;
                     }
                     gatewayUrl = url;

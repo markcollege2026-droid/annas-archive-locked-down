@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       gateway_url:
-        description: Default gateway URL baked into the APK
+        description: Gateway URL baked into the APK (host must contain "annas-archive")
         required: false
-        default: https://gateway.example.com/
+        default: https://annas-archive.gl/
 
 permissions:
   contents: write
@@ -50,7 +50,7 @@ jobs:
     name: Android APKs
     runs-on: ubuntu-latest
     env:
-      GATEWAY_URL: ${{ github.event.inputs.gateway_url || 'https://gateway.example.com/' }}
+      GATEWAY_URL: ${{ github.event.inputs.gateway_url || 'https://annas-archive.gl/' }}
       KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD || 'aagateway-ci' }}
     steps:
       - uses: actions/checkout@v4
@@ -83,6 +83,10 @@ jobs:
           keyAlias=gateway
           keyPassword=$KEYSTORE_PASSWORD
           EOF
+
+      - name: Run client unit tests (gateway lock rules)
+        working-directory: android
+        run: gradle --no-daemon --stacktrace testDebugUnitTest
 
       - name: Build debug APK
         working-directory: android

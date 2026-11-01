@@ -8,7 +8,7 @@ plugins {
 //                             -PaccessSequence=annas-arichive
 // or by editing the fallbacks below.
 // ---------------------------------------------------------------------------
-def gatewayUrl = (project.findProperty('gatewayUrl') ?: 'https://gateway.example.com/').toString()
+def gatewayUrl = (project.findProperty('gatewayUrl') ?: 'https://annas-archive.gl/').toString()
 def accessSequence = (project.findProperty('accessSequence') ?: 'annas-arichive').toString()
 def accessParam = (project.findProperty('accessParam') ?: 'gateway').toString()
 
@@ -86,4 +86,8 @@ android {
             excludes += ['META-INF/*']
         }
     }
+}
+
+dependencies {
+    testImplementation 'junit:junit:4.13.2'
 }

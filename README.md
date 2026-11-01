@@ -24,6 +24,8 @@ Browser / APK ──▶ Gateway (Node.js + Express) ──▶ target site
 | Required sequence | `annas-arichive` (14 characters, contains a dash) |
 | Maximum span | `17` characters, counting every character between the first and last match |
 | Matching | case-sensitive by default |
+| Target lock | only hosts containing `annas-archive` (server **and** app) |
+| In-app gateway editing | compiled out — requires a code change + rebuild |
 
 A request is allowed only when all 14 characters appear **in that exact order**
 somewhere in the requested URL (path + query string), and the distance from the
@@ -65,6 +67,29 @@ const DEFAULTS = {
 Each value can also be supplied as an environment variable of the same name
 (see `proxy/.env.example`), so one image can serve several deployments.
 
+### Target lock (the wrapper cannot be pointed elsewhere)
+
+`TARGET_ORIGIN` is not free-form. On startup the gateway checks it against
+
+```js
+ENFORCE_TARGET_ALLOWLIST: true,
+ALLOWED_TARGET_HOST_MARKERS: ['annas-archive'],
+```
+
+and **refuses to start** if the host does not contain `annas-archive`:
+
+```
+$ TARGET_ORIGIN=https://example.com npm start
+refusing to start: Target lock: TARGET_ORIGIN "https://example.com" is not an
+allowed Anna's Archive host. The host must contain one of: annas-archive. ...
+```
+
+So `annas-archive.gl`, `www.annas-archive.gl`, `annas-archive.org`,
+`annas-archive.se`, or your own wrapper host if it contains `annas-archive`
+(e.g. `annas-archive-gateway.example.com`) all work — anything else is refused,
+and a mis-set environment variable fails closed instead of silently proxying a
+different site.
+
 ### Making the check case-insensitive
 
 Set `CASE_SENSITIVE: false` in `proxy/src/config.js` (or
@@ -102,8 +127,8 @@ MAX_SEQUENCE_SPAN=20 npm start
 CASE_SENSITIVE=false npm start
 ```
 
-Tests (the gateway is covered by 48 unit + integration tests against a fake
-origin):
+Tests (the gateway is covered by 54 unit + integration tests against a fake
+origin, including the target lock):
 
 ```bash
 cd proxy
@@ -174,20 +199,61 @@ sequence yourself.
 ## 5. Android client (debug + release APK)
 
 `android/` is a minimal, dependency-free WebView client (no AndroidX, no
-third-party libraries). It stores the gateway URL and the access sequence in
-`SharedPreferences`, appends the sequence to navigations the page triggers
-itself, keeps cookies/session state, and hands downloads to the system
-`DownloadManager` (with cookies and the sequence attached).
+third-party libraries except JUnit for the unit tests). It appends the access
+sequence to navigations the page triggers itself, keeps cookies/session state,
+and hands downloads to the system `DownloadManager` (with cookies and the
+sequence attached).
 
-Default values are compiled in and can be changed per build:
+### The app is locked too
+
+`GatewayPolicy.java` is the single place that decides what the app may load:
+
+```java
+static final boolean ALLOW_IN_APP_GATEWAY_EDITING = false; // menu editor is compiled out
+static final boolean ALLOW_NON_ANNA_ARCHIVE_HOSTS = false; // host must contain "annas-archive"
+private static final String[] ALLOWED_HOST_MARKERS = {"annas-archive"};
+```
+
+While `ALLOW_IN_APP_GATEWAY_EDITING` is `false`:
+
+* **Gateway settings** in the menu only shows an explanation — it does not open
+  the editor.
+* Any gateway URL saved by an earlier build is **ignored and deleted**; the URL
+  compiled into the APK always wins.
+* There is no hidden gesture, intent, deep link, preference or runtime toggle
+  that unlocks it. The only way in is editing `GatewayPolicy.java`, setting the
+  flag to `true`, and rebuilding the APK.
+
+The settings-dialog code is untouched and still fully functional once the flag
+is flipped. `GatewayPolicyTest` (run in CI) asserts that editing stays compiled
+out and that non-Anna's Archive hosts are refused, so flipping the flag
+carelessly fails the build.
+
+The host rule applies in both modes: `annas-archive.gl`,
+`www.annas-archive.gl`, `annas-archive.org` … and a self-hosted wrapper host
+such as `annas-archive-gateway.example.com` are accepted; everything else
+(including `127.0.0.1` and `annasarchive.gl` without the dash) is rejected. If
+you ever need to point a build at something else completely, also set
+`ALLOW_NON_ANNA_ARCHIVE_HOSTS = true`.
+
+> Local testing caveat: a gateway running on `http://127.0.0.1:8080` does not
+> contain `annas-archive`, so the app refuses it. Test in a desktop browser,
+> build with `-PgatewayUrl=http://annas-archive.localhost:8080/`, or flip
+> `ALLOW_NON_ANNA_ARCHIVE_HOSTS` in your own test build.
+
+Default values are compiled in and can be changed per build (developer side —
+not from inside the app):
 
 ```bash
 cd android
-gradle assembleDebug -PgatewayUrl=https://my-gateway.example.com/ \
+# the APK default is https://annas-archive.gl/ ; point it at your own wrapper
+# (host must contain "annas-archive", otherwise the app refuses it)
+gradle assembleDebug -PgatewayUrl=https://annas-archive-gateway.example.com/ \
                      -PaccessSequence=annas-arichive
 ```
 
-You can also change them inside the app: **menu → Gateway settings**.
+The same value can be set for CI runs with the `gateway_url` workflow-dispatch
+input.
 
 ### Building the APKs
 
@@ -226,8 +292,8 @@ adb install -r apk/aa-gateway-debug.apk       # debug build (package suffix .deb
 ```
 
 Both are signed with APK Signature Scheme v2 and install on Android 7.0 (API 24)
-and newer. On first launch the app asks for your gateway URL and access
-sequence; after that it opens straight to the gateway.
+and newer. The app opens straight to the gateway compiled into the build — it
+does not ask for a URL, because that editor is locked (see above).
 
 > The CI signing key is generated per run (unless you set the
 > `ANDROID_KEYSTORE_PASSWORD` secret plus commit your own keystore). Because the
@@ -268,6 +334,11 @@ sequence; after that it opens straight to the gateway.
   controls, paywalls or rate limits, and is meant for hosts you are authorised
   to gate. You are responsible for what you point it at and who you give the
   sequence to.
+* **The lock is a build-time lock, not DRM.** `ALLOW_IN_APP_GATEWAY_EDITING` is
+  a constant inside the APK: anyone who modifies and re-signs the app can change
+  it, and the server-side target lock is what actually keeps a *deployed
+  gateway* pinned to Anna's Archive. The in-app lock keeps ordinary users from
+  re-pointing the client, not a determined reverse engineer.
 * **One shared secret, no user accounts.** Anyone with the sequence can use the
   gateway. Put it behind TLS (a platform proxy or Caddy/nginx), keep logs
   minimal (they are), and rotate by changing `ACCESS_SEQUENCE`.

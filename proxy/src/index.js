@@ -8,7 +8,13 @@
 import { CONFIG } from './config.js';
 import { createApp } from './server.js';
 
-const app = createApp(CONFIG);
+let app;
+try {
+  app = createApp(CONFIG);
+} catch (error) {
+  console.error(`refusing to start: ${error.message}`);
+  process.exit(1);
+}
 const port = Number(process.env.PORT) || CONFIG.PORT;
 
 const server = app.listen(port, CONFIG.HOST, () => {

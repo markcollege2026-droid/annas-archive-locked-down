@@ -15,6 +15,7 @@ import { request as undiciRequest } from 'undici';
 import { CONFIG } from './config.js';
 import { checkAccess } from './access.js';
 import { rewriteHtml, rewriteLocation, rewriteSetCookie } from './rewrite.js';
+import { assertTargetAllowed } from './target-policy.js';
 
 const HOP_BY_HOP_REQUEST_HEADERS = new Set([
   'connection',
@@ -206,6 +207,9 @@ export function downstreamHeadersFor(upstreamHeaders, wrapperSecure, cfg) {
  * @returns {import('express').Express}
  */
 export function createApp(cfg = CONFIG) {
+  // Fail closed: never serve if the target is not an allowed Anna's Archive host.
+  assertTargetAllowed(cfg);
+
   const app = express();
   app.disable('x-powered-by');
   app.set('etag', false);

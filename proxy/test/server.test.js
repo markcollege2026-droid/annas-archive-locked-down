@@ -95,6 +95,7 @@ async function startGateway(overrides = {}) {
   const cfg = {
     ...CONFIG,
     TARGET_ORIGIN: origin.origin,
+    ENFORCE_TARGET_ALLOWLIST: false, // the fake origin is 127.0.0.1
     AUDIT_LOG: false,
     ...overrides,
   };

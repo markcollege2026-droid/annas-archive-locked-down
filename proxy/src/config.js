@@ -24,6 +24,15 @@
  *      true  -> "annas-arichive" matches, "ANNAS-ARICHIVE" does not.
  *      false -> matching is case-insensitive.
  *
+ *  ENFORCE_TARGET_ALLOWLIST / ALLOWED_TARGET_HOST_MARKERS
+ *      Locks the wrapper to Anna's Archive. The target host must contain one of
+ *      the markers ("annas-archive" by default), so annas-archive.gl,
+ *      www.annas-archive.gl, annas-archive.org, annas-archive.se ... all work,
+ *      while any unrelated site is refused. The check runs at startup: if
+ *      TARGET_ORIGIN does not match, the gateway exits instead of serving.
+ *      Only set ENFORCE_TARGET_ALLOWLIST to false on a build you deliberately
+ *      want to point somewhere else (the unit tests do this).
+ *
  *  Every field can also be overridden with an environment variable of the same
  *  name (see .env.example), so the same build can be deployed to several hosts
  *  without editing the file.
@@ -45,6 +54,10 @@ const DEFAULTS = {
   MAX_SEQUENCE_SPAN: 17,
   CASE_SENSITIVE: true,
   // -----------------------------------------------------------------------
+
+  // ---- target lock: the wrapper may only ever proxy Anna's Archive --------
+  ENFORCE_TARGET_ALLOWLIST: true,
+  ALLOWED_TARGET_HOST_MARKERS: ['annas-archive'],
 
   // Query parameter the wrapper uses when it needs to carry the access
   // sequence across links / redirects / form posts (e.g. ?gateway=annas-arichive).
@@ -127,6 +140,17 @@ export const CONFIG = Object.freeze({
     DEFAULTS.MAX_SEQUENCE_SPAN,
   ),
   CASE_SENSITIVE: parseBoolean(envString('CASE_SENSITIVE', DEFAULTS.CASE_SENSITIVE), DEFAULTS.CASE_SENSITIVE),
+  ENFORCE_TARGET_ALLOWLIST: parseBoolean(
+    envString('ENFORCE_TARGET_ALLOWLIST', DEFAULTS.ENFORCE_TARGET_ALLOWLIST),
+    DEFAULTS.ENFORCE_TARGET_ALLOWLIST,
+  ),
+  ALLOWED_TARGET_HOST_MARKERS: envString(
+    'ALLOWED_TARGET_HOST_MARKERS',
+    DEFAULTS.ALLOWED_TARGET_HOST_MARKERS.join(','),
+  )
+    .split(',')
+    .map((marker) => marker.trim().toLowerCase())
+    .filter(Boolean),
   TOKEN_QUERY_PARAM: envString('TOKEN_QUERY_PARAM', DEFAULTS.TOKEN_QUERY_PARAM),
   STRIP_TOKEN_BEFORE_FORWARDING: parseBoolean(
     envString('STRIP_TOKEN_BEFORE_FORWARDING', DEFAULTS.STRIP_TOKEN_BEFORE_FORWARDING),
