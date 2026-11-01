@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Simple, dependency-free launcher icon: a padlock on a rounded square. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#1F2933"
+        android:pathData="M0,0h108v108h-108z" />
+    <path
+        android:fillColor="#F5F7FA"
+        android:pathData="M54,24c-9.4,0 -17,7.6 -17,17v7h-4c-2.2,0 -4,1.8 -4,4v30c0,2.2 1.8,4 4,4h42c2.2,0 4,-1.8 4,-4v-30c0,-2.2 -1.8,-4 -4,-4h-4v-7c0,-9.4 -7.6,-17 -17,-17zM54,32c5,0 9,4 9,9v7h-18v-7c0,-5 4,-9 9,-9z" />
+    <path
+        android:fillColor="#3B82F6"
+        android:pathData="M54,52a5,5 0 0 1 5,5c0,1.8 -1,3.4 -2.4,4.3l1.4,6.7h-8l1.4,-6.7a5,5 0 0 1 -2.4,-4.3a5,5 0 0 1 5,-5z" />
+</vector>

@@ -1,0 +1,21 @@
+# Node
+node_modules/
+npm-debug.log*
+.env
+
+# Android / Gradle
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/keystore.properties
+android/*.keystore
+android/*.jks
+
+# APK build outputs (CI commits apk/*.apk back to the branch on purpose)
+apk/*.apk.tmp
+
+# Editors / OS
+.DS_Store
+.idea/
+*.iml

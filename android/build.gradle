@@ -1,0 +1,5 @@
+// Root build file: only the Android Gradle Plugin is declared here.
+// Gradle 8.7+ and JDK 17 are required (AGP 8.5.x).
+plugins {
+    id 'com.android.application' version '8.5.2' apply false
+}

@@ -1,0 +1,19 @@
+{
+  "name": "annas-archive-gateway",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Server-side, access-sequence-gated reverse proxy in front of a single target site",
+  "type": "module",
+  "engines": {
+    "node": ">=18.17"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "undici": "^6.21.0"
+  }
+}
